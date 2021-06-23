@@ -162,7 +162,7 @@ for i in range(0,SL):
 
     # Copy functions
     tpath = os.path.join(path, 'functions.py')
-    copyfile('functions.py',tpath)
+    copyfile('templates/functions.py',tpath)
 
     # Copy .py templates
     
