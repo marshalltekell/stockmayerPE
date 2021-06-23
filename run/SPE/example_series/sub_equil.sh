@@ -1,0 +1,19 @@
+#!/bin/sh 
+cd mu_0.312
+sbatch run_equil.sh
+cd ..
+cd mu_0.347
+sbatch run_equil.sh
+cd ..
+cd mu_0.381
+sbatch run_equil.sh
+cd ..
+cd mu_0.416
+sbatch run_equil.sh
+cd ..
+cd mu_0.451
+sbatch run_equil.sh
+cd ..
+cd mu_0.486
+sbatch run_equil.sh
+cd ..

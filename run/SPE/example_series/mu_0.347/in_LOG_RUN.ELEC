@@ -1,0 +1,107 @@
+units		    real
+atom_style      hybrid sphere dipole angle
+
+read_restart    restart.run 
+reset_timestep  0
+
+variable        k_FENE equal 1.3834
+variable        R0 equal 5.8500
+variable        e equal 0.7014
+variable        o equal 3.9000
+variable        T equal 353.0000
+variable        r11 equal 3.9000
+variable        r12 equal 2.5047
+variable        r13 equal 4.8500
+variable        r22 equal 1.8000
+variable        r23 equal 3.8000
+variable        r33 equal 5.8000
+variable        rc11 equal 9.7500
+variable        rc12 equal 6.2618
+variable        rc13 equal 12.1250
+variable        rc22 equal 4.5000
+variable        rc23 equal 9.5000
+variable        rc33 equal 14.5000
+variable        rccoul equal 17.1840
+variable        K equal 0.7615
+variable        prod_tf equal 1000
+variable        prod_sf equal 10000
+variable        prod_run equal 15000000
+variable        runid loop 100
+variable        seed1 equal 97926
+variable        seed2 equal 35961
+variable        seed3 equal 57265
+
+group 		    poly type 1
+group		    elec type 2 3
+
+timestep        1.0
+
+bond_style      fene
+special_bonds   fene
+bond_coeff      1 ${k_FENE} ${R0} $e $o
+
+pair_style      lj/cut/dipole/long ${rc11} ${rccoul}
+pair_coeff      1 1 $e ${r11} ${rc11}
+pair_coeff      1 2 $e ${r12} ${rc12}
+pair_coeff      1 3 $e ${r13} ${rc13}
+pair_coeff      2 2 $e ${r22} ${rc22}
+pair_coeff      2 3 $e ${r23} ${rc23}
+pair_coeff      3 3 $e ${r33} ${rc33}
+kspace_style    ewald/disp 1.0e-4
+
+angle_style     cosine
+angle_coeff     * $K
+
+neighbor	        3.0 bin
+neigh_modify	    every 1 delay 0 check yes page 5000000 one 50000
+
+fix             1 all nve/sphere update dipole
+fix             2 poly langevin $T $T 100 ${seed1}
+fix             3 poly langevin $T $T 100 ${seed2} omega yes
+fix             4 all momentum 1000 linear 1 1 1 angular
+fix             5 elec langevin $T $T 100 ${seed3}
+
+compute		    msdcalc all msd
+compute         Tint all temp
+compute         Tint2 poly temp
+compute         Tint3 poly temp/sphere
+compute         Tint4 poly temp/sphere dof rotate
+compute         Tint5 elec temp
+compute         Tint6 elec temp/sphere
+compute         Tint7 elec temp/sphere dof rotate
+compute 	        Tint8 all temp/sphere
+compute_modify  Tint8 extra 600
+compute         Uint all pe
+compute         Kint all ke
+compute         Pint1 all pressure NULL pair
+compute         Pint2 all pressure NULL bond
+compute         Pint3 all pressure NULL angle
+compute         Pint4 all pressure NULL kspace
+compute         Pint5 all pressure Tint ke
+compute         Pint6 all pressure Tint8
+
+thermo_style	    custom step c_Tint c_Tint2 c_Tint3 c_Tint4 c_Tint5 c_Tint6 c_Tint7 c_Tint8 pe c_Pint6 pe press c_Pint6 vol c_Pint1 c_Pint2 c_Pint3 c_Pint4 c_Pint5 c_msdcalc[4]
+thermo		    ${prod_tf}
+
+label           runloop
+
+    reset_timestep  0
+    dump 1 all custom 1000 r.${runid}.out id type id x y z
+    dump 2 all custom 1000 mu.${runid}.out id type id mux muy muz
+    dump 3 all custom 1000 ru.${runid}.out id type id xu yu zu
+    variable s equal logfreq(1,9,10)
+    dump_modify 1 every v_s first yes sort id
+    dump_modify 2 every v_s first yes sort id
+    dump_modify 3 every v_s first yes sort id
+    run 10000
+    write_restart restart.logrun.${runid}
+    
+    undump 1
+    undump 2
+    undump 3
+    variable s delete
+    
+    next runid
+    
+    jump in_LOG_RUN.ELEC runloop
+

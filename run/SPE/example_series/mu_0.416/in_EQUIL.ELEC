@@ -1,0 +1,138 @@
+units		    real
+atom_style      hybrid sphere dipole angle
+
+read_data       ELEC_EQUIL.in 
+
+variable        k_FENE equal 1.3834
+variable        R0 equal 5.8500
+variable        e equal 0.7014
+variable        o equal 3.9000
+variable        T equal 353.0000
+variable        highT equal 1000.0000
+variable        equil_vseed equal 63376
+variable        r11 equal 3.9000
+variable        r12 equal 2.5047
+variable        r13 equal 4.8500
+variable        r22 equal 1.8000
+variable        r23 equal 3.8000
+variable        r33 equal 5.8000
+variable        rc11 equal 9.7500
+variable        rc12 equal 6.2618
+variable        rc13 equal 12.1250
+variable        rc22 equal 4.5000
+variable        rc23 equal 9.5000
+variable        rc33 equal 14.5000
+variable        rccoul equal 17.1840
+variable        K equal 0.7615
+variable        equil_tf equal 1000
+variable        equil_run_1 equal 1000
+variable        equil_run_2 equal 100000
+variable        equil_run_3 equal 10000000
+variable        Vint equal vol
+variable        seed1 equal 55869
+variable        seed2 equal 64674
+variable        seed3 equal 67376
+
+group           poly type 1
+group           elec type 2 3
+
+set             group elec omega 0.0 0.0 0.0
+
+bond_style      fene
+special_bonds   fene
+bond_coeff      1 ${k_FENE} ${R0} $e $o
+
+velocity        	all create $T ${equil_vseed}
+
+pair_style      lj/cut/dipole/long ${rc11} ${rccoul}
+pair_coeff      1 1 $e ${r11} ${rc11}
+pair_coeff      1 2 $e ${r12} ${rc12}
+pair_coeff      1 3 $e ${r13} ${rc13}
+pair_coeff      2 2 $e ${r22} ${rc22}
+pair_coeff      2 3 $e ${r23} ${rc23}
+pair_coeff      3 3 $e ${r33} ${rc33}
+kspace_style    ewald/disp 1.0e-4
+
+
+angle_style     cosine
+angle_coeff     * $K
+
+neighbor	        3.0 bin
+neigh_modify	    every 1 delay 0 check yes page 5000000 one 50000
+
+fix             1 all temp/rescale 1 $T $T 0.0 1.0
+fix             2 all nve/sphere update dipole
+
+compute		    msdcalc all msd
+compute         Tint all temp
+compute         Pint1 all pressure NULL pair
+compute         Pint2 all pressure NULL bond
+compute         Pint3 all pressure NULL angle
+compute         Pint4 all pressure NULL kspace
+compute         Pint5 all pressure Tint ke
+
+thermo_style	    custom step temp pe press vol c_Pint1 c_Pint2 c_Pint3 c_Pint4
+thermo		    ${equil_tf}
+
+min_style       sd 
+minimize 1.0e-6 1.0e-8 10000 100000
+
+timestep        0.2
+
+run		        ${equil_run_1}
+
+min_style       cg 
+minimize        1.0e-6 1.0e-8 10000 100000
+
+timestep        1.0
+
+run		        ${equil_run_2}
+
+min_style       sd 
+minimize 1.0e-6 1.0e-8 10000 100000
+
+timestep        1.0
+
+unfix           1
+unfix           2
+
+fix             1 all nve/sphere update dipole
+fix             2 poly langevin $T $T 100 ${seed1}
+fix             3 poly langevin $T $T 100 ${seed2} omega yes
+fix             4 all momentum 1000 linear 1 1 1 angular
+fix             5 elec langevin $T $T 100 ${seed3}
+fix             6 all press/berendsen iso 1.0 1.0 100000
+
+compute         Tint2 poly temp
+compute         Tint3 poly temp/sphere
+compute         Tint4 poly temp/sphere dof rotate
+compute         Tint5 elec temp
+compute         Tint6 elec temp/sphere
+compute         Tint7 elec temp/sphere dof rotate
+compute 	        Tint8 all temp/sphere
+compute_modify  Tint8 extra 600
+compute         Pint6 all pressure Tint8
+
+fix_modify      6 temp Tint8
+
+
+thermo_style	    custom step c_Tint c_Tint2 c_Tint3 c_Tint4 c_Tint5 c_Tint6 c_Tint7 c_Tint8 pe c_Pint6 vol c_Pint1 c_Pint2 c_Pint3 c_Pint4 c_Pint5 c_msdcalc[4]
+thermo		    ${equil_tf}
+
+run		        ${equil_run_2}
+run		        ${equil_run_3}
+run		        ${equil_run_3}
+
+restart         1000000 equil.restart
+run		        ${equil_run_3}
+
+reset_timestep  0
+fix             7 all ave/time ${equil_tf} 1 ${equil_tf} v_Vint file equil_vol.out mode scalar
+
+run             1000000
+
+write_restart   restart.equil
+
+
+
+
