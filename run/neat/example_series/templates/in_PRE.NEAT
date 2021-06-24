@@ -1,0 +1,36 @@
+units		    real
+atom_style      hybrid sphere dipole angle
+
+read_data       NEAT_PRE.in
+
+variable        k_FENE equal !!!k_FENE
+variable        R0 equal !!!R0
+variable        e equal !!!e
+variable        o equal !!!o
+variable        T equal !!!T
+variable        pre_vseed equal !!!pre_vseed
+variable        r0 equal !!!r0
+variable        prefactor equal ramp(0,!!!Amax)
+variable        pre_tf equal !!!pre_tf
+variable        pre_run equal !!!pre_run
+
+bond_style      fene
+special_bonds   fene
+bond_coeff      1 ${k_FENE} ${R0} $e $o
+
+velocity        	all create $T ${pre_vseed}
+
+pair_style      soft $o
+pair_coeff      1 * 0.0 ${r0}
+
+neighbor	        10.0 bin
+neigh_modify	    every 20 delay 0 check yes
+
+
+fix		        1 all nvt temp $T $T 100
+fix             8 all adapt 1 pair soft a * * v_prefactor
+
+thermo_style	    custom step temp pe press
+thermo		    ${pre_tf}
+
+run		        ${pre_run}

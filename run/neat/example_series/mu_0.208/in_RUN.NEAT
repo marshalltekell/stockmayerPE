@@ -1,0 +1,85 @@
+units		    real
+atom_style      hybrid sphere dipole angle
+
+read_restart    restart.equil
+
+variable        k_FENE equal 1.3834
+variable        R0 equal 5.8500
+variable        e equal 0.7014
+variable        o equal 3.9000
+variable        T equal 353.0000
+variable        r11 equal 3.9000
+
+variable        rc11 equal 9.7500
+
+variable        rccoul equal 10.0000
+variable        K equal 0.7615
+variable        prod_tf equal 1000
+variable        prod_sf equal 10000
+variable        prod_run equal 15000000
+
+variable        seed1 equal 88226
+variable        seed2 equal 51872
+variable        seed3 equal 47224
+
+
+timestep        1.0
+
+bond_style      fene
+special_bonds   fene
+bond_coeff      1 ${k_FENE} ${R0} $e $o
+
+pair_style      lj/cut/dipole/long ${rc11} ${rccoul}
+pair_coeff      1 1 $e ${r11} ${rc11}
+kspace_style    ewald/disp 1.0e-4
+
+angle_style     cosine
+angle_coeff     * $K
+
+neighbor	        3.0 bin
+neigh_modify	    every 1 delay 0 check yes page 5000000 one 50000
+
+fix             1 all nve/sphere update dipole
+fix             2 all langevin $T $T 100 ${seed1}
+fix             3 all langevin $T $T 100 ${seed2} omega yes
+fix             4 all momentum 1000 linear 1 1 1 angular
+
+reset_timestep  0
+
+compute		    msdcalc all msd
+compute         Tint all temp
+compute         Tint3 all temp/sphere
+compute         Tint4 all temp/sphere dof rotate
+compute         Uint all pe
+compute         Kint all ke
+compute         Pint1 all pressure NULL pair
+compute         Pint2 all pressure NULL bond
+compute         Pint3 all pressure NULL angle
+compute         Pint4 all pressure NULL kspace
+compute         Pint5 all pressure Tint ke
+compute         Pint6 all pressure Tint3
+
+thermo_style	    custom step c_Tint c_Tint3 c_Tint4 pe c_Pint6 vol c_Pint1 c_Pint2 c_Pint3 c_Pint4 c_Pint5 c_msdcalc[4]
+thermo		    ${prod_tf}
+
+fix             7 all ave/time ${prod_sf} 1 ${prod_sf} c_Tint3 c_Uint c_Kint c_Pint6 c_msdcalc[4] file TEPMSD.out mode scalar
+
+dump            1 all custom ${prod_sf} r.out id x y z
+dump            2 all custom ${prod_sf} ru.out id xu yu zu
+#dump            3 all custom ${prod_sf} v.out id vx vy vz
+#dump            4 all custom ${prod_sf} f.out id fx fy fz
+dump            5 all custom ${prod_sf} mu.out id mux muy muz
+#dump            6 all custom ${prod_sf} fqt.out id xu yu zu
+
+dump_modify     1 sort id
+dump_modify     2 sort id
+#dump_modify     3 sort id
+#dump_modify     4 sort id
+dump_modify     5 sort id
+#dump_modify     6 every v_s sort id 
+
+
+restart         1000000 run.restart
+run		        ${prod_run}
+
+write_restart   restart.run
